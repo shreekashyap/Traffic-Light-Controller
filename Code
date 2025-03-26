@@ -1,0 +1,145 @@
+`timescale 1ns / 1ps
+module tlc_fsm{
+ 
+//global signals       
+input wire i_clk     
+input wire i_rst        ,
+
+//inputs
+input wire i_ew_vd      ,
+
+//outputs
+output wire o_ns_red    ,
+output wire o_ns_yellow ,
+output wire o_ns_green  ,
+output wire o_ew_red    ,
+output wire o_ew_yellow ,
+output wire o_ew_green  ,
+};
+
+//state declaration
+localparm NS_GREEN = 0,
+          YELLOW   = 1,
+	      EW_GREEN = 2;
+
+reg      ns_to_ew  	   ;
+reg[9:0] counter   	   ;
+reg[1:0] state, next_state      ;
+reg ns_red    , next_ns_red     ;
+reg ns_yellow , next_ns_yellow  ;  
+reg ns_green  , next_ns_green   ;
+reg ew_red    , next_ew_red     ;
+reg ew_yellow , next_ew_yellow  ;  
+reg ew_green  , next_ew_green   ;
+
+//update state
+always@(posedge i_clk) begin
+    if (i_rst)begin
+        ns_red    <= 1'b0     ;
+        ns_yellow <= 1'b0     ;
+        ns_green  <= 1'b1     ;
+        ew_red    <= 1'b1     ;
+        ew_yellow <= 1'b0     ;
+        ew_green  <= 1'b0     ;
+        state     <= NS_GREEN ;
+        
+    end else begin 
+          
+        ns_red    <= next_ns_red     ;
+        ns_yellow <= next_ns_yellow  ;
+        ns_green  <= next_ns_green   ;
+        ew_red    <= next_ew_red     ;
+        ew_yellow <= next_ew_yellow  ;
+        ew_green  <= next_ew_green   ;
+        state     <= next_state      ;
+       
+end
+
+//counter logic
+//reset ||   state change NS -EW ||  state change EW - NS
+if(i_rst || (counter > 25 && i_ew_vd && state == NS_GREEN )|| (counter == 4 && state == YELLOW) || (counter >= 25 && (state ==    ~i_ew_vd && state == EW_GREEN))
+  counter <= 1'b0  ;
+else
+  counter <= counter +1 ;
+
+end
+//state machine logic
+always@(*)begin
+
+  //store to memory
+ next_ns_red    = ns_red     ;
+ next_ns_yellow = ns_yellow  ;
+ next_ns_green  = ns_green   ;
+ next_ew_red    = ew_red     ;
+ next_ew_yellow = ew_yellow  ;
+ next_ew_green  = ew_green   ;
+
+  //FSM 
+ case(state)
+
+NS_GREEN : begin
+
+if (counter > 25 && i_ew_vd) begin
+   next_state = YELLOW;
+   ns_to_ew = 1'b1;
+end else begin
+   
+next_ns_red    = 1'b0     ;
+next_ns_yellow = 1'b0     ;
+next_ns_green  = 1'b1     ;
+next_ew_red    = 1'b1     ;
+next_ew_yellow = 1'b0     ;
+next_ew_green  = 1'b0     ;
+next_state = NS_GREEN;
+end 
+end
+
+YELLOW: begin
+
+if(counter == 4) begin
+if(ns_to_ew)
+next_state = EW_GREEN ;
+else
+next_state = NS_GREEN ;
+end else begin
+next_ns_red    = 1'b0     ;
+next_ns_yellow = 1'b1     ;
+next_ns_green  = 1'b0     ;
+next_ew_red    = 1'b0     ;
+next_ew_yellow = 1'b1     ;
+next_ew_green  = 1'b0     ;
+next_state = YELLOW;
+end 
+
+end
+
+EW_GREEN: begin
+
+if (counter >= 25 || ~i_ew_vd) begin
+   next_state = YELLOW;
+   ns_to_ew = 1'b0;
+end else begin
+next_ns_red    = 1'b1     ;
+next_ns_yellow = 1'b0     ;
+next_ns_green  = 1'b0     ;
+next_ew_red    = 1'b0     ;
+next_ew_yellow = 1'b0     ;
+next_ew_green  = 1'b1     ;
+next_state = EW_GREEN ;
+end
+
+end
+
+default: begin
+next_ns_red    = 1'b0     ;
+next_ns_yellow = 1'b0     ;
+next_ns_green  = 1'b1     ;
+next_ew_red    = 1'b1     ;
+next_ew_yellow = 1'b0     ;
+next_ew_green  = 1'b0     ;
+
+end
+
+endcase
+
+end
